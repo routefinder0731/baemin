@@ -1,0 +1,100 @@
+# 로컬 개발용 인프라: MySQL(master 1 + replica 1), Redis, Kafka
+# 실행: docker compose up -d   /   종료: docker compose down   /   데이터까지 삭제: docker compose down -v
+name: baemin
+
+services:
+  mysql-master:
+    image: mysql:8.4
+    container_name: baemin-mysql-master
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: baemin
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      REPL_PASSWORD: ${REPL_PASSWORD}
+      MYSQL_INITDB_SKIP_TZINFO: "1"   # 타임존 테이블 적재가 replica로 복제되며 충돌하는 것을 방지
+    # Windows에서 마운트한 .cnf 파일은 권한 문제로 MySQL이 무시하므로, 설정을 실행 옵션으로 전달
+    command:
+      - --server-id=1                    # 복제 그룹 안에서 서버마다 달라야 하는 번호
+      - --log-bin=mysql-bin              # 변경 내역(binlog)을 기록해야 replica가 따라올 수 있음
+      - --gtid-mode=ON                   # 트랜잭션마다 고유 ID를 붙여 복제 위치를 자동 추적
+      - --enforce-gtid-consistency=ON
+    ports:
+      - "3307:3306"                      # PC에 설치된 MySQL(3306)과 겹치지 않게 3307 사용
+    volumes:
+      - mysql-master-data:/var/lib/mysql
+      - ./docker/mysql/master:/docker-entrypoint-initdb.d:ro   # 최초 1회 실행되는 초기화 스크립트
+    healthcheck:
+      # 127.0.0.1(TCP)로 확인해야 초기화가 끝나고 실제 서버가 뜬 뒤에 healthy가 됨
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+
+  mysql-replica:
+    image: mysql:8.4
+    container_name: baemin-mysql-replica
+    depends_on:
+      mysql-master:
+        condition: service_healthy       # master가 완전히 뜬 뒤에 시작
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      REPL_PASSWORD: ${REPL_PASSWORD}
+      MYSQL_INITDB_SKIP_TZINFO: "1"
+      # MYSQL_DATABASE, MYSQL_USER는 일부러 넣지 않음: master에서 만든 DB와 계정이 복제로 넘어옴
+    command:
+      - --server-id=2
+      - --relay-log=relay-bin            # master에서 받아온 변경 내역을 쌓아 두는 로그
+      - --gtid-mode=ON
+      - --enforce-gtid-consistency=ON
+    ports:
+      - "3308:3306"
+    volumes:
+      - mysql-replica-data:/var/lib/mysql
+      - ./docker/mysql/replica:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+
+  redis:
+    image: redis:7.4
+    container_name: baemin-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  kafka:
+    image: apache/kafka:3.9.0
+    container_name: baemin-kafka
+    ports:
+      - "9092:9092"
+    environment:
+      # KRaft 모드: ZooKeeper 없이 Kafka 혼자 broker와 controller 역할을 함께 수행
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092   # 애플리케이션(PC)에서 접속할 주소
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      # 브로커가 1대뿐이라 내부 토픽 복제 수를 1로 낮춤 (운영에서는 3)
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 3            # 토픽 자동 생성 시 기본 파티션 수
+
+volumes:
+  mysql-master-data:
+  mysql-replica-data:
+  redis-data:

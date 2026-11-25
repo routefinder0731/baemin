@@ -2,20 +2,31 @@ spring:
   application:
     name: baemin
 
-  datasource:
-    url: jdbc:h2:mem:baemin
-    username: sa
-    password:
+  # 프로젝트 루트의 .env(비밀번호)를 설정값으로 읽어 옴. 없으면 무시
+  config:
+    import: optional:file:.env[.properties]
 
-  h2:
-    console:
-      enabled: true
+  datasource:
+    # 지금은 master에만 연결. readOnly 조회를 replica로 보내는 라우팅은 6주 차에 추가
+    url: jdbc:mysql://localhost:3307/baemin
+    username: ${MYSQL_USER:baemin}
+    password: ${MYSQL_PASSWORD:}
 
   jpa:
     hibernate:
-      ddl-auto: create-drop
-    show-sql: true
+      # 테이블은 Flyway가 만들고, JPA는 엔티티와 테이블이 맞는지 검사만 함
+      ddl-auto: validate
+    open-in-view: false
     properties:
       hibernate:
         format_sql: true
-    open-in-view: false
+        jdbc:
+          time_zone: UTC   # DB에는 UTC로 저장하고, 화면에 보여 줄 때 한국 시간으로 변환
+
+  flyway:
+    # src/main/resources/db/migration 의 V1__xxx.sql, V2__xxx.sql ... 을 버전 순서대로 한 번씩 실행
+    locations: classpath:db/migration
+
+logging:
+  level:
+    org.hibernate.SQL: debug   # 실행되는 SQL 확인 (show-sql 대신 로거 사용)

@@ -9,5 +9,5 @@ public class BaeminApplication {
     public static void main(String[] args) {
         SpringApplication.run(BaeminApplication.class, args);
     }
-
+ 
 }

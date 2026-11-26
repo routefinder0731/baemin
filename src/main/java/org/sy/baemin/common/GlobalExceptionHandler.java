@@ -18,6 +18,7 @@ public class GlobalExceptionHandler {
     // 우리가 직접 던진 예외
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ErrorResponse> handleBusiness(BusinessException e) {
+        log.warn("비즈니스 오류: {} - {}", e.getErrorCode(), e.getMessage());
         ErrorCode code = e.getErrorCode();
         return ResponseEntity.status(code.getStatus())
                 .body(new ErrorResponse(code.name(), e.getMessage()));
@@ -27,29 +28,25 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException e) {
         List<FieldError> fieldErrors = e.getBindingResult().getFieldErrors();
-
         String message = fieldErrors.isEmpty()
                 ? ErrorCode.INVALID_INPUT.getMessage()
                 : fieldErrors.get(0).getField() + ": " + fieldErrors.get(0).getDefaultMessage();
-
+        log.warn("입력값 검증 실패: {}", message);
         return badRequest(message);
     }
 
     // 헤더 누락
     @ExceptionHandler(MissingRequestHeaderException.class)
     public ResponseEntity<ErrorResponse> handleMissingHeader(MissingRequestHeaderException e) {
+        log.warn("필수 헤더 누락: {}", e.getHeaderName());
         return badRequest("필수 헤더가 없습니다: " + e.getHeaderName());
     }
 
     // 요청 본문이 없거나 JSON 형식 오류
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleUnreadableBody(HttpMessageNotReadableException e) {
+        log.warn("요청본문 누락 혹은 json 형식 오류: {}", e.getMessage());
         return badRequest("요청된 본문이 없거나 형식이 올바르지 않습니다.");
-    }
-
-    private ResponseEntity<ErrorResponse> badRequest(String message) {
-        return ResponseEntity.badRequest()
-                .body(new ErrorResponse(ErrorCode.INVALID_INPUT.name(), message));
     }
 
     // 예상하지 못한 오류
@@ -61,4 +58,8 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse(code.name(), code.getMessage()));
     }
 
+    private ResponseEntity<ErrorResponse> badRequest(String message) {
+        return ResponseEntity.badRequest()
+                .body(new ErrorResponse(ErrorCode.INVALID_INPUT.name(), message));
+    }
 }

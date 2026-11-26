@@ -30,3 +30,7 @@ spring:
 logging:
   level:
     org.hibernate.SQL: debug   # 실행되는 SQL 확인 (show-sql 대신 로거 사용)
+
+baemin:
+  id:
+    node-id: 1 # snowflake 서버 번호. 서버마다 다르게 설정필요

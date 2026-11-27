@@ -43,6 +43,9 @@ dependencies {
     testCompileOnly 'org.projectlombok:lombok'
     testAnnotationProcessor 'org.projectlombok:lombok'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    // 비밀번호 BCrypt 암호화. Spring Securety 전체가 아니라 암호화 도구만 가져옴
+    implementation 'org.springframework.security:spring-security-crypto'
 }
 
 tasks.named('test') {

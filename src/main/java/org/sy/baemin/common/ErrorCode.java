@@ -18,7 +18,10 @@ public enum ErrorCode {
     CART_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "장바구니에 해당 메뉴가 없습니다."),
     CART_STORE_MISMATCH(HttpStatus.CONFLICT, "장바구니에는 한 가게의 메뉴만 담을 수 있습니다."),
 
-    INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
+    INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."),
+
+    DUPLICATE_EMAIL(HttpStatus.CONFLICT, "이미 가입된 이메일입니다.");
+
 
     private final HttpStatus status;
     private final String message;
